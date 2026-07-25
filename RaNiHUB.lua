@@ -26,7 +26,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 -- 3. TẠO CỬA SỔ UI CHÍNH
 -- ═══════════════════════════════════════════════════════
 local window = Rayfield:CreateWindow({
-    name = "Mobile Hub",
+    name = "RaNi Hub",
     subtitle = "Optimized for Mobile",
 })
 
@@ -527,7 +527,7 @@ end)
 -- 14. THÔNG BÁO KHI LOAD THÀNH CÔNG
 -- ═══════════════════════════════════════════════════════
 Rayfield:Notify({
-    title = "Mobile Hub",
+    title = "RaNi Hub",
     content = "Script loaded successfully! Tap ☰ to toggle UI.",
     duration = 5,
 })
