@@ -53,6 +53,7 @@ local espDrawings = {}          -- Bảng lưu các đối tượng Drawing ESP
 local espConnections = {}       -- Bảng lưu các connections ESP
 local aimConnection = nil       -- Connection cho Aim loop
 local espLoopConnection = nil   -- Connection cho ESP loop
+local fovCircleConnection = nil -- Connection cập nhật FOV circle
 
 -- ═══════════════════════════════════════════════════════
 -- 6. HÀM TIỆN ÍCH (Utility Functions)
@@ -62,26 +63,34 @@ local espLoopConnection = nil   -- Connection cho ESP loop
 local function isValidTarget(player)
     if player == LocalPlayer then return false end
     if not player or not player.Character then return false end
-    
+
     local character = player.Character
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local head = character:FindFirstChild("Head")
-    
+
     if not humanoid or not hrp or not head then return false end
     if humanoid.Health <= 0 then return false end
-    
+
     return true
 end
 
 -- Chuyển đổi Vector3 thế giới sang Vector2 màn hình
 local function worldToScreen(position)
+    Camera = Workspace.CurrentCamera or Camera
+    if not Camera then
+        return Vector2.new(0, 0), false
+    end
+
     local screenPos, onScreen = Camera:WorldToViewportPoint(position)
     return Vector2.new(screenPos.X, screenPos.Y), onScreen
 end
 
 -- Tính khoảng cách từ điểm đến tâm màn hình
 local function getDistanceToCenter(screenPos)
+    Camera = Workspace.CurrentCamera or Camera
+    if not Camera then return math.huge end
+
     local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     return (screenPos - viewportCenter).Magnitude
 end
@@ -89,6 +98,9 @@ end
 -- Kiểm tra xem vị trí màn hình có nằm trong vòng tròn FOV không
 local function isInFov(screenPos)
     if not isFovCircleEnabled or not fovCircle then return true end
+    Camera = Workspace.CurrentCamera or Camera
+    if not Camera then return false end
+
     local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     return (screenPos - viewportCenter).Magnitude <= fovRadius
 end
@@ -97,13 +109,12 @@ end
 local function getClosestTargetToCenter()
     local closestPlayer = nil
     local closestDistance = math.huge
-    local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
+
     for _, player in ipairs(Players:GetPlayers()) do
         if isValidTarget(player) then
             local head = player.Character.Head
             local screenPos, onScreen = worldToScreen(head.Position)
-            
+
             if onScreen and isInFov(screenPos) then
                 local distance = getDistanceToCenter(screenPos)
                 if distance < closestDistance then
@@ -113,7 +124,7 @@ local function getClosestTargetToCenter()
             end
         end
     end
-    
+
     return closestPlayer
 end
 
@@ -122,7 +133,7 @@ end
 -- ═══════════════════════════════════════════════════════
 local function createFovCircle()
     if fovCircle then return end
-    
+
     fovCircle = Drawing.new("Circle")
     fovCircle.Visible = true
     fovCircle.Thickness = 1.5
@@ -135,7 +146,12 @@ end
 
 local function updateFovCircle()
     if not fovCircle then return end
-    
+    Camera = Workspace.CurrentCamera or Camera
+    if not Camera then
+        fovCircle.Visible = false
+        return
+    end
+
     local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     fovCircle.Position = viewportCenter
     fovCircle.Radius = fovRadius
@@ -143,6 +159,11 @@ local function updateFovCircle()
 end
 
 local function removeFovCircle()
+    if fovCircleConnection then
+        fovCircleConnection:Disconnect()
+        fovCircleConnection = nil
+    end
+
     if fovCircle then
         fovCircle:Remove()
         fovCircle = nil
@@ -154,21 +175,21 @@ end
 -- ═══════════════════════════════════════════════════════
 local function createEspForPlayer(player)
     if espDrawings[player] then return end
-    
+
     local box = Drawing.new("Square")
     box.Visible = false
     box.Thickness = 1
     box.Color = Color3.fromRGB(255, 0, 0)  -- Đỏ
     box.Transparency = 0.8
     box.Filled = false
-    
+
     local nameText = Drawing.new("Text")
     nameText.Visible = false
     nameText.Size = 14
     nameText.Color = Color3.fromRGB(255, 255, 255)
     nameText.Outline = true
     nameText.Center = true
-    
+
     espDrawings[player] = {
         box = box,
         nameText = nameText
@@ -178,35 +199,35 @@ end
 local function updateEspForPlayer(player)
     local drawings = espDrawings[player]
     if not drawings then return end
-    
+
     if not isEspEnabled or not isValidTarget(player) then
         drawings.box.Visible = false
         drawings.nameText.Visible = false
         return
     end
-    
+
     local character = player.Character
     local hrp = character:FindFirstChild("HumanoidRootPart")
     local head = character:FindFirstChild("Head")
-    
+
     if not hrp or not head then
         drawings.box.Visible = false
         drawings.nameText.Visible = false
         return
     end
-    
+
     -- Tính toán vị trí box
     local headPos, headOnScreen = worldToScreen(head.Position + Vector3.new(0, 0.5, 0))
     local footPos, footOnScreen = worldToScreen(hrp.Position - Vector3.new(0, 3, 0))
-    
+
     if headOnScreen and footOnScreen then
         local boxHeight = math.abs(footPos.Y - headPos.Y)
         local boxWidth = boxHeight * 0.6
-        
+
         drawings.box.Size = Vector2.new(boxWidth, boxHeight)
         drawings.box.Position = Vector2.new(headPos.X - boxWidth / 2, headPos.Y)
         drawings.box.Visible = true
-        
+
         drawings.nameText.Text = player.Name
         drawings.nameText.Position = Vector2.new(headPos.X, headPos.Y - 20)
         drawings.nameText.Visible = true
@@ -222,14 +243,14 @@ local function cleanupEsp()
         espLoopConnection:Disconnect()
         espLoopConnection = nil
     end
-    
+
     -- Xóa tất cả Drawing objects
     for player, drawings in pairs(espDrawings) do
         if drawings.box then drawings.box:Remove() end
         if drawings.nameText then drawings.nameText:Remove() end
     end
     espDrawings = {}
-    
+
     -- Ngắt kết nối sự kiện PlayerRemoving
     for _, conn in ipairs(espConnections) do
         conn:Disconnect()
@@ -238,13 +259,15 @@ local function cleanupEsp()
 end
 
 local function startEsp()
+    if espLoopConnection then return end
+
     -- Tạo ESP cho tất cả người chơi hiện tại
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             createEspForPlayer(player)
         end
     end
-    
+
     -- Lắng nghe người chơi mới vào
     local playerAddedConn = Players.PlayerAdded:Connect(function(player)
         if player ~= LocalPlayer then
@@ -252,7 +275,7 @@ local function startEsp()
         end
     end)
     table.insert(espConnections, playerAddedConn)
-    
+
     -- Lắng nghe người chơi rời đi để dọn dẹp
     local playerRemovingConn = Players.PlayerRemoving:Connect(function(player)
         if espDrawings[player] then
@@ -262,7 +285,7 @@ local function startEsp()
         end
     end)
     table.insert(espConnections, playerRemovingConn)
-    
+
     -- RenderStepped loop cho ESP (đồng bộ với khung hình)
     espLoopConnection = RunService.RenderStepped:Connect(function()
         if not isEspEnabled then return end
@@ -279,16 +302,18 @@ end
 -- ═══════════════════════════════════════════════════════
 local function startAimLoop()
     if aimConnection then return end
-    
+
     aimConnection = RunService.RenderStepped:Connect(function()
         if not isRageAimEnabled and not isSmoothAimEnabled then return end
-        
+        Camera = Workspace.CurrentCamera or Camera
+        if not Camera then return end
+
         local target = getClosestTargetToCenter()
         if not target then return end
-        
+
         local head = target.Character:FindFirstChild("Head")
         if not head then return end
-        
+
         if isRageAimEnabled then
             -- Rage Aim: Khóa ngay lập tức vào đầu
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, head.Position)
@@ -298,7 +323,7 @@ local function startAimLoop()
             -- Slider 1 -> Lerp 0.5, Slider 10 -> Lerp 0.05
             local lerpFactor = 0.55 - (smoothAimSpeed * 0.05)  -- 1->0.50, 10->0.05
             lerpFactor = math.clamp(lerpFactor, 0.01, 0.5)
-            
+
             local targetCFrame = CFrame.new(Camera.CFrame.Position, head.Position)
             Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lerpFactor)
         end
@@ -321,13 +346,13 @@ combatTab:CreateToggle({
     name = "Auto Aim Head (Rage)",
     callback = function(value)
         isRageAimEnabled = value
-        
+
         -- Logic độc quyền: Nếu bật Rage thì tắt Smooth
         if value and isSmoothAimEnabled then
             isSmoothAimEnabled = false
             -- Cập nhật lại UI toggle smooth (nếu cần, Rayfield Gen2 tự lưu state)
         end
-        
+
         if isRageAimEnabled or isSmoothAimEnabled then
             startAimLoop()
         else
@@ -341,12 +366,12 @@ combatTab:CreateToggle({
     name = "Aim Legit (Smooth)",
     callback = function(value)
         isSmoothAimEnabled = value
-        
+
         -- Logic độc quyền: Nếu bật Smooth thì tắt Rage
         if value and isRageAimEnabled then
             isRageAimEnabled = false
         end
-        
+
         if isRageAimEnabled or isSmoothAimEnabled then
             startAimLoop()
         else
@@ -391,21 +416,14 @@ playerTab:CreateToggle({
         isFovCircleEnabled = value
         if value then
             createFovCircle()
-            -- Cập nhật vị trí vòng tròn mỗi frame
-            if not fovCircle then
-                fovCircle = Drawing.new("Circle")
-                fovCircle.Thickness = 1.5
-                fovCircle.Color = Color3.fromRGB(0, 255, 0)
-                fovCircle.Transparency = 0.7
-                fovCircle.Filled = false
-                fovCircle.NumSides = 64
-            end
-            -- Kết nối cập nhật vị trí
-            RunService.RenderStepped:Connect(function()
-                if fovCircle and isFovCircleEnabled then
+            updateFovCircle()
+
+            -- Chỉ tạo 1 connection để tránh leak khi bật/tắt nhiều lần
+            if not fovCircleConnection then
+                fovCircleConnection = RunService.RenderStepped:Connect(function()
                     updateFovCircle()
-                end
-            end)
+                end)
+            end
         else
             removeFovCircle()
         end
@@ -483,9 +501,9 @@ UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
         local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
         toggleFrame.Position = UDim2.new(
-            frameStartPos.X.Scale, 
+            frameStartPos.X.Scale,
             frameStartPos.X.Offset + delta.X,
-            frameStartPos.Y.Scale, 
+            frameStartPos.Y.Scale,
             frameStartPos.Y.Offset + delta.Y
         )
     end

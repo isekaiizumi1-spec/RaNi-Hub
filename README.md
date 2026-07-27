@@ -1,7 +1,7 @@
-# RaNi-Hub 
+# RaNi-Hub
 # 📱 Mobile Optimized Roblox Script
 
-> **Mục đích:** Nghiên cứu toán hình học không gian (Vector2/Vector3), tương tác hệ thống CFrame trên Roblox Studio.  
+> **Mục đích:** Nghiên cứu toán hình học không gian (Vector2/Vector3), tương tác hệ thống CFrame trên Roblox Studio.
 > Script được tối ưu hóa hiệu năng cao cho thiết bị di động (Mobile) để tránh tụt FPS.
 
 ---
@@ -20,7 +20,7 @@
 ### Tab Player
 | Tính năng | Mô tả |
 |-----------|-------|
-| **ESP Player** | Vẽ khung Box + tên ngườichơi xung quanh ngườichơi khác bằng `Drawing.new()`. Chỉ hiển thị khi bật. |
+| **ESP Player** | Vẽ khung Box + tên người chơi xung quanh người chơi khác bằng `Drawing.new()`. Chỉ hiển thị khi bật. |
 | **POV/FOV Circle** | Vẽ vòng tròn màu xanh lá cây `Color3.fromRGB(0, 255, 0)` cố định ở tâm màn hình. |
 | **FOV Radius Slider** | Thanh kéo chỉnh bán kính vòng tròn từ **1 đến 360** (mặc định 180). |
 
@@ -28,5 +28,9 @@
 
 ---
 
-## 🏗️ Cấu trúc 
-mã nguồn
+## 🏗️ Cấu trúc mã nguồn
+
+| File | Mô tả |
+|------|-------|
+| `RaNiHUB.lua` | Script chính tạo UI, aim loop, ESP và FOV circle. |
+| `README.md` | Tài liệu mô tả tính năng và cách tổ chức repository. |
